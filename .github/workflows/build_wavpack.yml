@@ -41,5 +41,6 @@ jobs:
             dist/wavpack
             dist/wvunpack
             dist/wvgain
+            dist/wvtag
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
