@@ -1,0 +1,45 @@
+name: Build and Release WavPack 5.9.0
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Install Build Tools
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Download with Fallback
+        run: |
+          PRIMARY="https://github.com/dbry/WavPack/releases/download/5.9.0/wavpack-5.9.0.tar.xz"
+          BACKUP="https://www.wavpack.com/wavpack-5.9.0.tar.xz"
+          
+          wget $PRIMARY || wget $BACKUP
+          tar -xf wavpack-5.9.0.tar.xz
+
+      - name: Compile Static Binaries
+        run: |
+          cd wavpack-5.9.0
+          ./configure --disable-shared --enable-static
+          make -j$(nproc)
+          mkdir ../dist
+          cp src/wavpack src/wvunpack src/wvgain ../dist/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v5.9.0
+          name: WavPack 5.9.0 Static Binaries
+          body: |
+            Static Linux binaries for WavPack 5.9.0.
+            Sources used (with fallback): wavpack.com & github.com/dbry/WavPack
+          files: |
+            dist/wavpack
+            dist/wvunpack
+            dist/wvgain
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
