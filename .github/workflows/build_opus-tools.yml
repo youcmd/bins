@@ -2,7 +2,11 @@ name: Build and Release Opus Tools Static
 
 on:
   workflow_dispatch:
-
+  
+env:
+  WORKSPACE: ${{ github.workspace }}/build_env
+  PKG_CONFIG_PATH: ${{ github.workspace }}/build_env/lib/pkgconfig
+  
 jobs:
   build-opus-tools:
     runs-on: ubuntu-22.04
@@ -14,12 +18,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential autoconf automake libtool pkg-config wget git
-
-      - name: Set Environment Variables
-        run: |
-          # Setting up local workspace paths
-          echo "WORKSPACE=${{ github.workspace }}/build_env" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=${{ github.workspace }}/build_env/lib/pkgconfig" >> $GITHUB_ENV
 
       - name: Build Dependencies (Ogg, FLAC)
         run: |
