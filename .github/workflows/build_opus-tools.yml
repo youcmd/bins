@@ -47,6 +47,7 @@ jobs:
           # 3. libopus
           wget -O opus-1.6.1.tar.gz https://github.com/xiph/opus/archive/refs/tags/v1.6.1.tar.gz
           tar xzf opus-1.6.1.tar.gz && cd opus-1.6.1
+          ./autogen.sh
           ./configure --prefix=$WORKSPACE --enable-static --disable-shared
           make -j$(nproc) install
           cd ..
