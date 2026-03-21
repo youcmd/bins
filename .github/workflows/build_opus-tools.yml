@@ -1,0 +1,116 @@
+name: Build and Release Opus Tools Static
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-opus-tools:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Install Build Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential autoconf automake libtool pkg-config wget git
+
+      - name: Set Environment Variables
+        run: |
+          # Setting up local workspace paths
+          echo "WORKSPACE=${{ github.workspace }}/build_env" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=${{ github.workspace }}/build_env/lib/pkgconfig" >> $GITHUB_ENV
+
+      - name: Build Dependencies (Ogg, FLAC)
+        run: |
+          mkdir -p $WORKSPACE/src
+          cd $WORKSPACE/src
+
+          # 1. libogg
+          wget https://github.com/xiph/ogg/releases/download/v1.3.6/libogg-1.3.6.tar.gz
+          tar xzf libogg-1.3.6.tar.gz && cd libogg-1.3.6
+          ./configure --prefix=$WORKSPACE --enable-static --disable-shared
+          make -j$(nproc) install
+          cd ..
+
+          # 2. libflac
+          wget https://github.com/xiph/flac/releases/download/1.5.0/flac-1.5.0.tar.xz
+          tar xf flac-1.5.0.tar.xz && cd flac-1.5.0
+          ./configure --prefix=$WORKSPACE --enable-static --disable-shared --disable-oggtest
+          make -j$(nproc) install
+          cd ..
+
+      - name: Build Opus Libraries (libopus, libopusenc, opusfile)
+        run: |
+          cd $WORKSPACE/src
+          
+          # 3. libopus
+          wget -O opus-1.6.1.tar.gz https://github.com/xiph/opus/archive/refs/tags/v1.6.1.tar.gz
+          tar xzf opus-1.6.1.tar.gz && cd opus-1.6.1
+          ./configure --prefix=$WORKSPACE --enable-static --disable-shared
+          make -j$(nproc) install
+          cd ..
+          
+          # 4. libopusenc
+          wget https://github.com/xiph/libopusenc/releases/download/v0.3/libopusenc-0.3.tar.gz
+          tar xzf libopusenc-0.3.tar.gz && cd libopusenc-0.3
+          ./autogen.sh
+          ./configure --prefix=$WORKSPACE --enable-static --disable-shared
+          make -j$(nproc) install
+          cd ..
+
+          # 5. opusfile
+          wget https://github.com/xiph/opusfile/releases/download/v0.12/opusfile-0.12.tar.gz
+          tar xzf opusfile-0.12.tar.gz && cd opusfile-0.12
+          ./autogen.sh
+          ./configure --prefix=$WORKSPACE --enable-static --disable-shared --disable-http
+          make -j$(nproc) install
+
+      - name: Build Final Binaries (opus-tools)
+        run: |
+          cd $WORKSPACE/src
+          git clone --branch v0.2 --depth 1 https://github.com/xiph/opus-tools.git
+          cd opus-tools
+          ./autogen.sh
+          
+          PKG_CONFIG="pkg-config --static" ./configure --prefix=$WORKSPACE \
+            --enable-static --disable-shared \
+            CFLAGS="-I$WORKSPACE/include" \
+            LDFLAGS="-L$WORKSPACE/lib -static" \
+            LIBS="-lpthread"
+          
+          make -j$(nproc)
+          make install
+
+      - name: Prepare Artifacts
+        run: |
+          mkdir -p ${{ github.workspace }}/dist
+          # Copy Opus Tools
+          cp $WORKSPACE/bin/opusenc ${{ github.workspace }}/dist/
+          cp $WORKSPACE/bin/opusdec ${{ github.workspace }}/dist/
+          cp $WORKSPACE/bin/opusinfo ${{ github.workspace }}/dist/
+          # Copy FLAC Tools (built during dependency step)
+          cp $WORKSPACE/bin/flac ${{ github.workspace }}/dist/
+          cp $WORKSPACE/bin/metaflac ${{ github.workspace }}/dist/
+          
+          # Strip symbols to reduce size
+          strip ${{ github.workspace }}/dist/*
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.2
+          name: Opus Tools & FLAC Static Binaries
+          body: |
+            ### Static Binaries for Linux (x64)
+            - **Opus Tools:** v0.2 (libopus 1.6.1)
+            - **FLAC:** v1.5.0
+            - **Libraries included:** Ogg 1.3.6, libopusenc 0.3, opusfile 0.12.
+          files: |
+            dist/opusenc
+            dist/opusdec
+            dist/opusinfo
+            dist/flac
+            dist/metaflac
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
