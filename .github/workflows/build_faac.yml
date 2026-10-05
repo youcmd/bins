@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: "Create GitHub Release and upload asset"
+        description: "Create GitHub Release and upload binary"
         required: true
         default: false
         type: boolean
@@ -24,9 +24,6 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      # ------------------------------------------------------------
-      # Checkout FAAC faac-2.2
-      # ------------------------------------------------------------
       - name: Checkout FAAC
         uses: actions/checkout@v7
         with:
@@ -35,206 +32,47 @@ jobs:
           path: faac
           fetch-depth: 0
 
-      # ------------------------------------------------------------
-      # Install dependencies
-      # ------------------------------------------------------------
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            meson \
-            ninja-build \
-            xz-utils
+          sudo apt-get install -y build-essential meson ninja-build
 
-      # ------------------------------------------------------------
-      # Show build environment
-      # ------------------------------------------------------------
-      - name: Show build environment
-        run: |
-          echo "=== System ==="
-          uname -a
-          uname -m
-
-          echo
-          echo "=== Compiler ==="
-          gcc --version
-
-          echo
-          echo "=== Meson ==="
-          meson --version
-
-          echo
-          echo "=== Ninja ==="
-          ninja --version
-
-      # ------------------------------------------------------------
-      # Show source revision
-      # ------------------------------------------------------------
-      - name: Show source revision
-        working-directory: faac
-        run: |
-          git status
-          git log -1 --oneline
-          git describe --tags --always || true
-
-      # ------------------------------------------------------------
-      # Configure
-      # ------------------------------------------------------------
       - name: Configure
         working-directory: faac
-        run: |
-          meson setup build \
-            --buildtype=release \
-            --default-library=static \
-            -Dfrontend=true
+        run: meson setup build --buildtype=release --default-library=static -Dfrontend=true
 
-      # ------------------------------------------------------------
-      # Build
-      # ------------------------------------------------------------
       - name: Build
         working-directory: faac
-        run: |
-          meson compile -C build
+        run: meson compile -C build
 
-      # ------------------------------------------------------------
-      # Verify build
-      # ------------------------------------------------------------
-      - name: Verify build
+      - name: Verify
         working-directory: faac
         run: |
-          echo "=== Executables ==="
-          find build -type f -executable -print
-
-          echo
-          echo "=== FAAC binary ==="
           file build/frontend/faac
-
-          echo
-          echo "=== Dynamic dependencies ==="
           ldd build/frontend/faac || true
-
-          echo
-          echo "=== FAAC help ==="
-
-          # FAAC prints help but exits with status 1.
           ./build/frontend/faac --help || true
 
-      # ------------------------------------------------------------
-      # Install
-      # ------------------------------------------------------------
-      - name: Install
-        working-directory: faac
+      - name: Prepare binary
         run: |
-          meson install -C build \
-            --destdir "${GITHUB_WORKSPACE}/install"
+          mkdir -p output
+          cp faac/build/frontend/faac output/faac
+          strip output/faac
+          chmod +x output/faac
+          file output/faac
+          ls -lh output/faac
 
-      # ------------------------------------------------------------
-      # Verify installation
-      # ------------------------------------------------------------
-      - name: Verify installation
-        run: |
-          echo "=== Installed files ==="
-          find install -type f -print
-
-          echo
-          echo "=== Installed FAAC ==="
-          find install -type f -name faac -print
-
-      # ------------------------------------------------------------
-      # Package
-      # ------------------------------------------------------------
-      - name: Package
-        run: |
-          VERSION="2.2.0"
-          PACKAGE="faac-${VERSION}-linux-x86_64"
-
-          rm -rf package
-          mkdir -p "package/${PACKAGE}"
-
-          FAAC_BIN="$(find install -type f -name faac -print -quit)"
-
-          if [ -z "$FAAC_BIN" ]; then
-            echo "ERROR: FAAC binary was not found"
-            echo
-            echo "Installed files:"
-            find install -type f -print
-            exit 1
-          fi
-
-          echo "Using FAAC binary:"
-          echo "$FAAC_BIN"
-
-          cp "$FAAC_BIN" \
-            "package/${PACKAGE}/faac"
-
-          # Include license if available
-          find install \
-            -type f \
-            \( -iname 'LICENSE*' -o -iname 'COPYING*' \) \
-            -exec cp {} "package/${PACKAGE}/" \; \
-            2>/dev/null || true
-
-          # Strip executable
-          strip \
-            "package/${PACKAGE}/faac"
-
-          # Create archive
-          tar -C package \
-            -cJf \
-            "package/${PACKAGE}.tar.xz" \
-            "${PACKAGE}"
-
-          # SHA256
-          sha256sum \
-            "package/${PACKAGE}.tar.xz" \
-            > \
-            "package/${PACKAGE}.tar.xz.sha256"
-
-          echo
-          echo "=== Package directory ==="
-          find package -type f -print
-
-          echo
-          echo "=== Release files ==="
-          ls -lh \
-            "package/${PACKAGE}.tar.xz" \
-            "package/${PACKAGE}.tar.xz.sha256"
-
-      # ------------------------------------------------------------
-      # Verify package files
-      # ------------------------------------------------------------
-      - name: Verify package
-        run: |
-          test -f package/faac-2.2.0-linux-x86_64.tar.xz
-          test -f package/faac-2.2.0-linux-x86_64.tar.xz.sha256
-
-          echo "Package verification successful."
-
-          echo
-          echo "=== SHA256 ==="
-          cat package/faac-2.2.0-linux-x86_64.tar.xz.sha256
-
-      # ------------------------------------------------------------
-      # Upload GitHub Actions artifact
-      # ------------------------------------------------------------
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: faac-2.2.0-linux-x86_64
-          path: package/
+          name: faac
+          path: output/faac
           if-no-files-found: error
 
-      # ------------------------------------------------------------
-      # Create GitHub Release
-      # ------------------------------------------------------------
       - name: Create release
         if: inputs.release == true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: faac-2.2.0-linux-x86_64
-          name: FAAC 2.2.0 Linux x86_64
+          tag_name: faac-2.2
+          name: FAAC
           generate_release_notes: true
-          files: |
-            package/faac-*.tar.xz
-            package/faac-*.tar.xz.sha256
+          files: output/faac
