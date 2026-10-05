@@ -1,6 +1,8 @@
 name: Build FAAC Linux
 
 on:
+  push:
+    paths: .github/workflows/build_faac.yml
   workflow_dispatch:
     inputs:
       release:
@@ -147,6 +149,7 @@ jobs:
           VERSION="2.2.0"
           PACKAGE="faac-${VERSION}-linux-x86_64"
 
+          rm -rf package
           mkdir -p "package/${PACKAGE}"
 
           FAAC_BIN="$(find install -type f -name faac -print -quit)"
@@ -179,20 +182,38 @@ jobs:
           # Create archive
           tar -C package \
             -cJf \
-            "${PACKAGE}.tar.xz" \
+            "package/${PACKAGE}.tar.xz" \
             "${PACKAGE}"
 
           # SHA256
           sha256sum \
-            "${PACKAGE}.tar.xz" \
+            "package/${PACKAGE}.tar.xz" \
             > \
-            "${PACKAGE}.tar.xz.sha256"
+            "package/${PACKAGE}.tar.xz.sha256"
+
+          echo
+          echo "=== Package directory ==="
+          find package -type f -print
 
           echo
           echo "=== Release files ==="
           ls -lh \
-            "${PACKAGE}.tar.xz" \
-            "${PACKAGE}.tar.xz.sha256"
+            "package/${PACKAGE}.tar.xz" \
+            "package/${PACKAGE}.tar.xz.sha256"
+
+      # ------------------------------------------------------------
+      # Verify package files
+      # ------------------------------------------------------------
+      - name: Verify package
+        run: |
+          test -f package/faac-2.2.0-linux-x86_64.tar.xz
+          test -f package/faac-2.2.0-linux-x86_64.tar.xz.sha256
+
+          echo "Package verification successful."
+
+          echo
+          echo "=== SHA256 ==="
+          cat package/faac-2.2.0-linux-x86_64.tar.xz.sha256
 
       # ------------------------------------------------------------
       # Upload GitHub Actions artifact
@@ -201,9 +222,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: faac-2.2.0-linux-x86_64
-          path: |
-            package/faac-*.tar.xz
-            package/faac-*.tar.xz.sha256
+          path: package/
           if-no-files-found: error
 
       # ------------------------------------------------------------
