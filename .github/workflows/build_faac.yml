@@ -1,0 +1,218 @@
+name: Build FAAC Linux
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FAAC_REPOSITORY: FreewareAdvancedAudio/faac
+  FAAC_REF: faac-2.2
+
+jobs:
+  build:
+    name: Linux x86_64 Static
+    runs-on: ubuntu-24.04
+
+    steps:
+      # ------------------------------------------------------------
+      # Checkout FAAC faac-2.2
+      # ------------------------------------------------------------
+      - name: Checkout FAAC
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.FAAC_REPOSITORY }}
+          ref: ${{ env.FAAC_REF }}
+          path: faac
+          fetch-depth: 0
+
+      # ------------------------------------------------------------
+      # Install dependencies
+      # ------------------------------------------------------------
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            meson \
+            ninja-build \
+            xz-utils
+
+      # ------------------------------------------------------------
+      # Show build environment
+      # ------------------------------------------------------------
+      - name: Show build environment
+        run: |
+          echo "=== System ==="
+          uname -a
+          uname -m
+
+          echo
+          echo "=== Compiler ==="
+          gcc --version
+
+          echo
+          echo "=== Meson ==="
+          meson --version
+
+          echo
+          echo "=== Ninja ==="
+          ninja --version
+
+      # ------------------------------------------------------------
+      # Show source revision
+      # ------------------------------------------------------------
+      - name: Show source revision
+        working-directory: faac
+        run: |
+          git status
+          git log -1 --oneline
+          git describe --tags --always || true
+
+      # ------------------------------------------------------------
+      # Configure
+      #
+      # The FAAC project defaults to:
+      #   default_library=both
+      #
+      # Override that with:
+      #   --default-library=static
+      #
+      # This makes libfaac a static archive and causes the frontend
+      # to link against that static library.
+      # ------------------------------------------------------------
+      - name: Configure
+        working-directory: faac
+        run: |
+          meson setup build \
+            --buildtype=release \
+            --default-library=static \
+            -Dfrontend=true
+
+      # ------------------------------------------------------------
+      # Build
+      # ------------------------------------------------------------
+      - name: Build
+        working-directory: faac
+        run: |
+          meson compile -C build
+
+      # ------------------------------------------------------------
+      # Verify build output
+      # ------------------------------------------------------------
+      - name: Verify build
+        working-directory: faac
+        run: |
+          echo "=== Executables ==="
+          find build -type f -executable -print
+
+          echo
+          echo "=== FAAC binary ==="
+          file build/faac
+
+          echo
+          echo "=== Dynamic dependencies ==="
+          ldd build/faac || true
+
+          echo
+          echo "=== FAAC version/help ==="
+          ./build/faac --help
+
+      # ------------------------------------------------------------
+      # Install into temporary directory
+      # ------------------------------------------------------------
+      - name: Install
+        working-directory: faac
+        run: |
+          meson install -C build \
+            --destdir "${GITHUB_WORKSPACE}/install"
+
+      # ------------------------------------------------------------
+      # Verify installation
+      # ------------------------------------------------------------
+      - name: Verify installation
+        run: |
+          echo "=== Installed files ==="
+          find install -type f -print
+
+          echo
+          echo "=== Installed FAAC ==="
+          find install -type f -name faac -print
+
+      # ------------------------------------------------------------
+      # Package
+      # ------------------------------------------------------------
+      - name: Package
+        run: |
+          VERSION="2.2.0"
+          PACKAGE="faac-${VERSION}-linux-x86_64"
+
+          mkdir -p "package/${PACKAGE}"
+
+          FAAC_BIN="install/usr/local/bin/faac"
+
+          if [ ! -f "$FAAC_BIN" ]; then
+            echo "ERROR: FAAC binary not found at:"
+            echo "$FAAC_BIN"
+            echo
+            echo "Actual installed files:"
+            find install -type f -print
+            exit 1
+          fi
+
+          cp "$FAAC_BIN" \
+            "package/${PACKAGE}/faac"
+
+          # Include license if available
+          find install \
+            -type f \
+            \( -iname 'LICENSE*' -o -iname 'COPYING*' \) \
+            -exec cp {} "package/${PACKAGE}/" \; \
+            2>/dev/null || true
+
+          # Strip executable
+          strip \
+            "package/${PACKAGE}/faac"
+
+          # Create archive
+          tar -C package \
+            -cJf \
+            "${PACKAGE}.tar.xz" \
+            "${PACKAGE}"
+
+          # SHA256
+          sha256sum \
+            "${PACKAGE}.tar.xz" \
+            > \
+            "${PACKAGE}.tar.xz.sha256"
+
+          echo "=== Release files ==="
+          ls -lh \
+            "${PACKAGE}.tar.xz" \
+            "${PACKAGE}.tar.xz.sha256"
+
+      # ------------------------------------------------------------
+      # Upload GitHub Actions artifact
+      # ------------------------------------------------------------
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: faac-2.2.0-linux-x86_64
+          path: |
+            package/faac-*.tar.xz
+            package/faac-*.tar.xz.sha256
+          if-no-files-found: error
+
+      # ------------------------------------------------------------
+      # Create GitHub Release
+      # ------------------------------------------------------------
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: faac-2.2.0-linux-x86_64
+          name: FAAC 2.2.0 Linux x86_64
+          generate_release_notes: true
+          files: |
+            package/faac-*.tar.xz
+            package/faac-*.tar.xz.sha256
