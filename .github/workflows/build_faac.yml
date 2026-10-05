@@ -2,6 +2,12 @@ name: Build FAAC Linux
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Create GitHub Release and upload asset"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -108,7 +114,9 @@ jobs:
 
           echo
           echo "=== FAAC help ==="
-          ./build/frontend/faac --help
+
+          # FAAC prints help but exits with status 1.
+          ./build/frontend/faac --help || true
 
       # ------------------------------------------------------------
       # Install
@@ -202,6 +210,7 @@ jobs:
       # Create GitHub Release
       # ------------------------------------------------------------
       - name: Create release
+        if: inputs.release == true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: faac-2.2.0-linux-x86_64
