@@ -72,15 +72,6 @@ jobs:
 
       # ------------------------------------------------------------
       # Configure
-      #
-      # The FAAC project defaults to:
-      #   default_library=both
-      #
-      # Override that with:
-      #   --default-library=static
-      #
-      # This makes libfaac a static archive and causes the frontend
-      # to link against that static library.
       # ------------------------------------------------------------
       - name: Configure
         working-directory: faac
@@ -99,7 +90,7 @@ jobs:
           meson compile -C build
 
       # ------------------------------------------------------------
-      # Verify build output
+      # Verify build
       # ------------------------------------------------------------
       - name: Verify build
         working-directory: faac
@@ -109,18 +100,18 @@ jobs:
 
           echo
           echo "=== FAAC binary ==="
-          file build/faac
+          file build/frontend/faac
 
           echo
           echo "=== Dynamic dependencies ==="
-          ldd build/faac || true
+          ldd build/frontend/faac || true
 
           echo
-          echo "=== FAAC version/help ==="
-          ./build/faac --help
+          echo "=== FAAC help ==="
+          ./build/frontend/faac --help
 
       # ------------------------------------------------------------
-      # Install into temporary directory
+      # Install
       # ------------------------------------------------------------
       - name: Install
         working-directory: faac
@@ -150,16 +141,18 @@ jobs:
 
           mkdir -p "package/${PACKAGE}"
 
-          FAAC_BIN="install/usr/local/bin/faac"
+          FAAC_BIN="$(find install -type f -name faac -print -quit)"
 
-          if [ ! -f "$FAAC_BIN" ]; then
-            echo "ERROR: FAAC binary not found at:"
-            echo "$FAAC_BIN"
+          if [ -z "$FAAC_BIN" ]; then
+            echo "ERROR: FAAC binary was not found"
             echo
-            echo "Actual installed files:"
+            echo "Installed files:"
             find install -type f -print
             exit 1
           fi
+
+          echo "Using FAAC binary:"
+          echo "$FAAC_BIN"
 
           cp "$FAAC_BIN" \
             "package/${PACKAGE}/faac"
@@ -187,6 +180,7 @@ jobs:
             > \
             "${PACKAGE}.tar.xz.sha256"
 
+          echo
           echo "=== Release files ==="
           ls -lh \
             "${PACKAGE}.tar.xz" \
