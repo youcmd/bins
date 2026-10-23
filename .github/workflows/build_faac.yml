@@ -13,7 +13,7 @@ on:
       latest_commit:
         description: "Build from the latest commit instead of FAAC_REF"
         required: true
-        default: false
+        default: true
         type: boolean
 
 permissions:
@@ -56,10 +56,11 @@ jobs:
         run: |
           file build/frontend/faac
           ldd build/frontend/faac || true
-          ./build/frontend/faac --help || true
+          ./build/frontend/faac -H || true
 
       - name: Prepare binary
         run: |
+          ls build/frontend
           mkdir -p output
           cp faac/build/frontend/faac output/faac
           strip output/faac
