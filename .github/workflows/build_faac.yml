@@ -63,7 +63,7 @@ jobs:
             echo "=== $bin ==="
             file "build/frontend/$bin"
             ldd "build/frontend/$bin" || true
-            "build/frontend/$bin" -h || true
+            "build/frontend/$bin" -H || true
           done
 
       - name: Prepare binaries
