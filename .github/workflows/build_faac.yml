@@ -60,7 +60,7 @@ jobs:
 
       - name: Prepare binary
         run: |
-          ls ./build/frontend/
+          ls faac/build/frontend/
           mkdir -p output
           cp faac/build/frontend/faac output/faac
           strip output/faac
