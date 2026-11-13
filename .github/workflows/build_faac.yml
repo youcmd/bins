@@ -50,6 +50,7 @@ jobs:
             --buildtype=release \
             --default-library=static \
             -Dfrontend=true \
+            -Dfrontend-static=true \
             -Dc_link_args=-static
 
       - name: Build
@@ -58,11 +59,27 @@ jobs:
 
       - name: Verify
         working-directory: faac
+        shell: bash
         run: |
+          set -e
+
           for bin in faac faad faam faar; do
             echo "=== $bin ==="
+
+            test -x "build/frontend/$bin"
             file "build/frontend/$bin"
-            ldd "build/frontend/$bin" || true
+
+            if readelf -lW "build/frontend/$bin" | grep -q INTERP; then
+              echo "ERROR: $bin requires a dynamic loader"
+              exit 1
+            fi
+
+            if readelf -dW "build/frontend/$bin" 2>/dev/null | grep -q NEEDED; then
+              echo "ERROR: $bin has dynamic dependencies"
+              exit 1
+            fi
+
+            echo "Static binary verified: $bin"
             "build/frontend/$bin" -H || true
           done
 
