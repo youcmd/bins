@@ -22,7 +22,7 @@ permissions:
 
 env:
   FAAC_REPOSITORY: FreewareAdvancedAudio/faac
-  FAAC_REF: faac-2.2
+  FAAC_REF: faac-3.0
 
 jobs:
   build:
