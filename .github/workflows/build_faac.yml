@@ -96,7 +96,7 @@ jobs:
         if: inputs.release == true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: faac-2.2
+          tag_name: faac-3.0
           name: FAAC Linux x86_64
           generate_release_notes: true
           files: |
